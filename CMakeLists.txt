@@ -16,6 +16,17 @@ find_package(Qt6 REQUIRED COMPONENTS
     WebSockets
 
 )
+find_package(Qt6 REQUIRED COMPONENTS Core)
+
+
+# Définir le chemin du SDK
+set(DISCORD_SDK_PATH "${CMAKE_CURRENT_SOURCE_DIR}/libraries/discord_game_sdk")
+
+
+file(GLOB_RECURSE DISC_HEADERS "${DISCORD_SDK_PATH}/cpp/*.h")
+
+ # "${DISCORD_SDK_PATH}/cpp/*.cpp"
+
 
 
 SET(SOURCES
@@ -23,14 +34,12 @@ SET(SOURCES
     main.cpp
     CustomTray.cpp
     window.cpp
-
-
 )
 
 SET(HEADERS
     CustomTray.h
     window.h
-
+    ${DISC_HEADERS}
 )
 
 
@@ -41,6 +50,7 @@ qt_add_executable(RichSocketTray ${SOURCES} ${HEADERS}
     CustomListener.h CustomListener.cpp
     WSServer.h WSServer.cpp
     MediaObject.h MediaObject.cpp
+    RichPresenceManager.h RichPresenceManager.cpp
 
 )
 
@@ -49,12 +59,8 @@ set_target_properties(RichSocketTray PROPERTIES
     MACOSX_BUNDLE TRUE
 )
 
-target_link_libraries(RichSocketTray PRIVATE
-    Qt6::Core
-    Qt6::Gui
-    Qt6::Widgets
-    Qt6::WebSockets
-)
+
+
 
 
 # Resources:
@@ -72,6 +78,47 @@ qt_add_resources(RichSocketTray "RichSocketTray"
 )
 
 
+
+message(STATUS DISCORD_SDK_PATH)
+
+add_library(discord_sdk SHARED IMPORTED)
+
+# Configuration conditionnelle par plateforme
+if(WIN32)
+    # Windows : utiliser .dll.lib pour le linkage et .dll pour le runtime
+    set_target_properties(discord_sdk PROPERTIES
+        IMPORTED_LOCATION "${DISCORD_SDK_PATH}/lib/x86_64/discord_game_sdk.dll"
+        IMPORTED_IMPLIB "${DISCORD_SDK_PATH}/lib/x86_64/discord_game_sdk.dll.lib"
+    )
+elseif(APPLE)
+    # macOS : utiliser .dylib (ignorer le .bundle)
+    set_target_properties(discord_sdk PROPERTIES
+        IMPORTED_LOCATION "${DISCORD_SDK_PATH}/lib/x86_64/discord_game_sdk.dylib"
+    )
+elseif(UNIX)
+    # Linux : utiliser .so
+    set_target_properties(discord_sdk PROPERTIES
+        IMPORTED_LOCATION "${DISCORD_SDK_PATH}/lib/x86_64/discord_game_sdk.so"
+    )
+endif()
+
+# Link against discord library, that we defined earlier as a target
+target_link_libraries(RichSocketTray PRIVATE discord_sdk)
+
+# Add headers to project
+target_include_directories(discord_sdk INTERFACE
+    "${DISCORD_SDK_PATH}/cpp"
+)
+
+
+# Link against cute libraries
+target_link_libraries(RichSocketTray PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::WebSockets
+)
+target_link_libraries(RichSocketTray PRIVATE Qt6::Core)
 
 # qt_generate_deploy_app_script(
 #     TARGET RichSocketTray
