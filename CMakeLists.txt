@@ -9,49 +9,41 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-
 find_package(Qt6 REQUIRED COMPONENTS
+    Core
     Gui
     Widgets
     WebSockets
-
 )
-find_package(Qt6 REQUIRED COMPONENTS Core)
 
-
-# Définir le chemin du SDK
-set(DISCORD_SDK_PATH "${CMAKE_CURRENT_SOURCE_DIR}/libraries/discord_game_sdk")
-
-
-file(GLOB_RECURSE DISC_HEADERS "${DISCORD_SDK_PATH}/cpp/*.h")
-
- # "${DISCORD_SDK_PATH}/cpp/*.cpp"
-
-
-
+# Sources du projet
 SET(SOURCES
-
     main.cpp
     CustomTray.cpp
     window.cpp
+    Config.cpp
+    CustomListener.cpp
+    WSServer.cpp
+    MediaObject.cpp
+    RichPresenceManager.cpp
+    discord_impl.cpp
 )
 
 SET(HEADERS
     CustomTray.h
     window.h
-    ${DISC_HEADERS}
+    Config.h
+    CustomListener.h
+    WSServer.h
+    MediaObject.h
+    RichPresenceManager.h
+    Secrets.h
 )
-
 
 qt_standard_project_setup()
 
 qt_add_executable(RichSocketTray ${SOURCES} ${HEADERS}
-    Config.h Config.cpp
-    CustomListener.h CustomListener.cpp
-    WSServer.h WSServer.cpp
-    MediaObject.h MediaObject.cpp
-    RichPresenceManager.h RichPresenceManager.cpp
-
+    discord_impl.cpp
 )
 
 set_target_properties(RichSocketTray PROPERTIES
@@ -60,91 +52,77 @@ set_target_properties(RichSocketTray PROPERTIES
 )
 
 
+# https://discord.com/developers/docs/discord-social-sdk/getting-started/using-c++
 
 
+# Define some handy Social SDK variables
+set(DISCORD_SDK_ROOT "${CMAKE_SOURCE_DIR}/lib/discord_social_sdk")
+set(DISCORD_SDK_LIB_DIR "${DISCORD_SDK_ROOT}/lib/release")
+set(DISCORD_SDK_BIN_DIR "${DISCORD_SDK_ROOT}/bin/release")
+set(DISCORD_SDK_INCLUDE_DIR "${DISCORD_SDK_ROOT}/include")
 
-# Resources:
-# set(RichSocketTray_resource_files
-#     "images/bad.png"
-#     "images/heart.png"
-#     "images/trash.png"
-# )
+# Include for Social SDK headers
+target_include_directories(RichSocketTray PRIVATE ${DISCORD_SDK_INCLUDE_DIR})
 
-qt_add_resources(RichSocketTray "RichSocketTray"
-    PREFIX
-        "/"
-    FILES
-        ${RichSocketTray_resource_files}
-)
-
-
-
-message(STATUS DISCORD_SDK_PATH)
-
-add_library(discord_sdk SHARED IMPORTED)
-
-# Configuration conditionnelle par plateforme
+# Platform-specific Social SDK library paths
 if(WIN32)
-    # Windows : utiliser .dll.lib pour le linkage et .dll pour le runtime
-    set_target_properties(discord_sdk PROPERTIES
-        IMPORTED_LOCATION "${DISCORD_SDK_PATH}/lib/x86_64/discord_game_sdk.dll"
-        IMPORTED_IMPLIB "${DISCORD_SDK_PATH}/lib/x86_64/discord_game_sdk.dll.lib"
-    )
+
+    set(DISCORD_SHARED_LIB "${DISCORD_SDK_BIN_DIR}/discord_partner_sdk.dll")
+    if(MSVC)
+        set(DISCORD_LIB_PATH "${DISCORD_SDK_LIB_DIR}/discord_partner_sdk.lib")
+
+        message(STATUS "TEST")
+    elseif(MINGW)
+        set(DISCORD_LIB_PATH "${DISCORD_SDK_LIB_DIR}/discord_partner_sdk.dll.a")
+
+    endif()
+
+
+
 elseif(APPLE)
-    # macOS : utiliser .dylib (ignorer le .bundle)
-    set_target_properties(discord_sdk PROPERTIES
-        IMPORTED_LOCATION "${DISCORD_SDK_PATH}/lib/x86_64/discord_game_sdk.dylib"
-    )
-elseif(UNIX)
-    # Linux : utiliser .so
-    set_target_properties(discord_sdk PROPERTIES
-        IMPORTED_LOCATION "${DISCORD_SDK_PATH}/lib/x86_64/discord_game_sdk.so"
-    )
+    set(DISCORD_LIB_PATH "${DISCORD_SDK_LIB_DIR}/libdiscord_partner_sdk.dylib")
+    set(DISCORD_SHARED_LIB "${DISCORD_SDK_LIB_DIR}/libdiscord_partner_sdk.dylib")
+else() # Linux
+    set(DISCORD_LIB_PATH "${DISCORD_SDK_LIB_DIR}/libdiscord_partner_sdk.so")
+    set(DISCORD_SHARED_LIB "${DISCORD_SDK_LIB_DIR}/libdiscord_partner_sdk.so")
 endif()
 
-# Link against discord library, that we defined earlier as a target
-target_link_libraries(RichSocketTray PRIVATE discord_sdk)
-
-# Add headers to project
-target_include_directories(discord_sdk INTERFACE
-    "${DISCORD_SDK_PATH}/cpp"
-)
 
 
-# Link against cute libraries
+
+
+# Lier toutes les bibliothèques
 target_link_libraries(RichSocketTray PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
     Qt6::WebSockets
+    ${DISCORD_LIB_PATH} #discord api
 )
-target_link_libraries(RichSocketTray PRIVATE Qt6::Core)
 
-# qt_generate_deploy_app_script(
-#     TARGET RichSocketTray
-#     OUTPUT_SCRIPT deploy_script
-#     NO_UNSUPPORTED_PLATFORM_ERROR
-# )
-# install(SCRIPT ${deploy_script})
+# Set the runtime search path (RPATH) for Linux and macOS
+if(UNIX)
+    # Use RPATH when building
+    set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+    # Set the RPATH to use the lib directory relative to the executable
+    set(CMAKE_INSTALL_RPATH "$ORIGIN")
+    if(APPLE)
+        set(CMAKE_INSTALL_RPATH "@executable_path")
+    endif()
+endif()
 
+
+# Copy Social SDK shared library to output directory, so it's available at runtime.
+add_custom_command(TARGET RichSocketTray POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${DISCORD_SHARED_LIB}"
+    $<TARGET_FILE_DIR:RichSocketTray>
+)
+
+
+# Installation
 include(GNUInstallDirs)
 install(TARGETS RichSocketTray
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-
 )
-
-
-
-# if(COMMAND qt_create_translation)
-#     qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})
-# else()
-#     qt5_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})
-# endif()
-
-
-
-
-
-

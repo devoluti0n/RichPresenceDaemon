@@ -21,10 +21,10 @@ MediaObject::MediaObject(QObject *parent)
 
 // }
 
-QString Media::Music::ToString(){
-    QString final = this->track + "(" + QString::number(duration) +") - " + this->artist + "\r\n\t" + this->album;
-    return final;
-}
+// QString Media::Music::ToString(){
+//     QString final = this->track + "(" + QString::number(duration) +") - " + this->artist + "\r\n\t" + this->album;
+//     return final;
+// }
 
 
 
@@ -37,10 +37,16 @@ MediaObject* MediaObject::GetInstance(QObject *parent){
 
 void MediaObject::SetMetadata(MediaMetaData newData){
     qDebug() << "Set Meta Data called";
-    qDebug() <<   std::get<Media::Music>(newData).ToString();
-    this->_metaData = newData;
+    // qDebug() <<   std::get<Media::Music>(newData).ToString();
+    _metaData = newData;
+    qDebug() << "just before crash;";
     emit this->OnChange(newData);
+    qDebug() << "just after crash";
 
+}
+
+MediaMetaData MediaObject::GetMetadata(){
+    return this->_metaData;
 }
 
 

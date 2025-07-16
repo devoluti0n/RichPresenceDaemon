@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR BSD-3-Clause
 
 #include <QApplication>
+#include <ostream>
 
 #ifndef QT_NO_SYSTEMTRAYICON
 
@@ -14,27 +15,21 @@
 
 #include "MediaObject.h"
 
-using MediaMetaData = std::variant<Media::Music, Media::Series, Media::Movie>;
+// #include "discordpp.h"
+#include  "RichPresenceManager.h"
+
+// Defines SNOWFLAKE_APP_ID
+#include "Secrets.h"
+#include <QTimer>
+
+
+
+
+
+Q_DECLARE_METATYPE(Media::Music)
+Q_DECLARE_METATYPE(Media::Series)
+Q_DECLARE_METATYPE(Media::Movie)
 Q_DECLARE_METATYPE(MediaMetaData)
-
-
-
-
-/*
- *
- *  TODO: write a small GUI ton configure which port to listen to and if we allow only from localhost or network as well
- *          JSON validator?
- *      Once project complete move cpp and headers to variables in CMakeLists
- *
- *
- *  Test using
- *  Install-Module WebSocket -Scope CurrentUser -Force
- *  Import-Module WebSocket -Force -PassThru
- *  $socketClient = Get-WebSocket -SocketUrl "ws://localhost:32322/"
- * $socketClient.Send("Hello WebSocket")
- * $socketClient | Receive-Job -Keep (pour lire la reponse du client renvoyé par client->sendTextMessage)
- *
- * */
 
 
 
@@ -42,12 +37,13 @@ Q_DECLARE_METATYPE(MediaMetaData)
 int main(int argc, char *argv[])
 {
     // Needed for  my qVariant to be able to work in signal and slots as a parameter
+
+    qRegisterMetaType<Media::Music>("Media::Music");
+    qRegisterMetaType<Media::Series>("Media::Series");
+    qRegisterMetaType<Media::Movie>("Media::Movie");
     qRegisterMetaType<MediaMetaData>("MediaMetaData");
 
-
-
     QApplication app(argc, argv);
-
     // if (!QSystemTrayIcon::isSystemTrayAvailable()) {
     //     auto choice = QMessageBox::critical(nullptr, QObject::tr("Bite"),
     //                                         QObject::tr("I couldn't detect any system tray on this system."),
@@ -78,33 +74,28 @@ int main(int argc, char *argv[])
 
     WSServer server(32322,&app);
 
+    // Declare it here to be able to connect it *before* it emits OnChange
+    MediaObject * mediaObject = MediaObject::GetInstance(&app);
+    RichPresenceManager* rpManager = RichPresenceManager::GetInstance(&app);
 
 
-    //app.connect(&server, &WSServer::MessageReceivedFromClient, &app, [=](QWebSocket* client, QString message){ /*implement here if needed */});
+    app.connect(mediaObject, &MediaObject::OnChange,rpManager,&RichPresenceManager::SetActivity);
 
-    app.connect(&server, &WSServer::JsonReceivedFromClient,&app, [=](QWebSocket* client, const QByteArray & message){
+    app.connect(&server, &WSServer::JsonReceivedFromClient,&app, [&](QWebSocket* client, const QByteArray & message){
         qDebug() << "Should we add error handling in the lambda?";
 
-        // Construct the Media Object out of the json
-
         try{
-            MediaObject * mediaObject = MediaObject::FromByteArray(message);
-            mediaObject->deleteLater();
+            // Construct the Media Object out of the json
+            mediaObject = MediaObject::FromByteArray(message);
 
         }catch(std::exception &e){
             qDebug() << "forsenE.what() " << e.what();
         }
-
-
-
-
-        // mark to delete when event loop is over
-
-
-        //Convert to json document here and do some stuff with it?
-        // Should it be its own class or what, i'm confused
-
     } );
+
+
+
+    // Not sure if needed but better be safe than sorry
 
     // window.show();
     return app.exec();

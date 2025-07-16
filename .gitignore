@@ -1,5 +1,9 @@
 # This file is used to ignore files which are generated
 # ----------------------------------------------------------------------------
+Secrets.h
+lib/discord_social_sdk/*
+!lib/discord_social_sdk/README.md
+
 
 *~
 *.autosave

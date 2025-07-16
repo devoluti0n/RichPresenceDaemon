@@ -8,6 +8,8 @@
 
 
 
+
+
 namespace Media{
     enum Status{
         PLAYING,
@@ -18,8 +20,6 @@ namespace Media{
     struct Music{
         QString track, album, artist;
         quint16 duration;
-        QString ToString();
-
     };
 
     struct Series{
@@ -46,11 +46,19 @@ namespace Media{
 
 }
 
+
 //required because of Q_DECLARE_METATYPE using     MediaMetaData
 // as macro expansion would fail on the commas
 
 // it is required when connected to a slot
 using MediaMetaData = std::variant<Media::Music, Media::Series, Media::Movie>;
+// https://discord.com/developers/docs/discord-social-sdk/getting-started/using-c++
+
+
+
+
+
+
 
 class MediaObject : public QObject
 {
@@ -64,7 +72,7 @@ public:
 
     // void SetMetaData( std::variant<Media::Music,Media::Series,Media::Movie> metaData);
 
-
+    MediaMetaData GetMetadata();
 
     /**
      * MediaObjects should not be cloneable.
@@ -78,7 +86,7 @@ public:
 
 
 signals:
-    void OnChange(MediaMetaData newData );
+    void OnChange(const MediaMetaData & newData);
 private:
 
 
@@ -100,9 +108,9 @@ private:
     quint16 _length = 0;
     // where are we at
     quint16 _whereAt = 0;
-
-    std::variant<Media::Music,Media::Series,Media::Movie>  _metaData;
-
+    // The following line crashes despite the using
+    // std::variant<Media::Music,Media::Series,Media::Movie>  _metaData;
+    MediaMetaData _metaData;
 
 
 
